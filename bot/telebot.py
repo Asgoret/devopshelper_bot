@@ -434,6 +434,13 @@ def report(update, context):
         in_section = section in config.sections()
         command_name = inspect.currentframe().f_code.co_name
         feature_flag = config.get(section, command_name) == 'on'
+        chat_id = str(update.message.chat_id)
+        user_id = str(update.message.reply_to_message.from_user.id)
+        message_id = str(update.message.reply_to_message.message_id)
+        keyboard = [
+                [InlineKeyboardButton('burn spam', callback_data='spam ' + chat_id + ' ' + user_id + ' ' + message_id)]
+            ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         if in_section and feature_flag:
                 try:
                         context.bot.send_message(chat_id=update.message.chat_id, text="Report on [spam message]("+ "https://t.me/" + str(update.message.chat.username) + "/" \
@@ -442,7 +449,7 @@ def report(update, context):
                         context.bot.deleteMessage(chat_id=update.message.chat.id, message_id=update.message.message_id)
                         context.bot.forward_message(chat_id=config.get(section, 'admin_chat'), from_chat_id=update.message.chat_id, message_id=update.message.reply_to_message.message_id)
                         context.bot.send_message(chat_id=config.get(section, 'admin_chat'), text="User think it's spam: " + "https://t.me/"+ str(update.message.chat.username)+"/" \
-                                + str(update.message.reply_to_message.message_id), disable_web_page_preview=True)
+                                + str(update.message.reply_to_message.message_id), disable_web_page_preview=True, reply_markup=reply_markup)
                 except AttributeError:
                         context.bot.deleteMessage(chat_id=update.message.chat.id, message_id=update.message.message_id)
                         context.bot.send_message(chat_id=update.message.chat_id, text="Report command works on replied messages only.")
@@ -664,6 +671,28 @@ def delete_service_message(update, context):
 
 dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, delete_service_message, run_async=True))
 dispatcher.add_handler(MessageHandler(Filters.status_update.left_chat_member, delete_service_message, run_async=True))
+
+## Delete spam message and Ban spamer with admin button
+def delete_ban_button(update, context):
+        query = update.callback_query
+        query.answer()
+        callback_data = query.message.reply_markup.inline_keyboard[0][0].callback_data
+        chat_id = int(callback_data.split()[1])
+        user_id = int(callback_data.split()[2])
+        message_id = int(callback_data.split()[3])
+        admin_username = query.from_user.username
+### i see no reason to double check
+#        section = str(chat_id)
+#        in_section = section in config.sections()
+#        command_name = inspect.currentframe().f_code.co_name
+#        feature_flag = config.get(section, command_name) == 'on'
+#        if in_section and feature_flag:
+        context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        context.bot.kick_chat_member(chat_id=chat_id, user_id=user_id)
+        query.edit_message_text(text="Approved by @"+admin_username)
+
+button_spam_handler = CallbackQueryHandler(delete_ban_button, pattern='spam[\s\S]+', run_async=True)
+dispatcher.add_handler(button_spam_handler)
 
 
 def main():
